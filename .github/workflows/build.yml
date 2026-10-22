@@ -25,7 +25,8 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug
 
-      - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@v4
         with:
           name: keyboard-apk
-          path: app/build/outputs/apk/debug/*.apk￼Enter
+          path: '**/build/outputs/apk/**/*.apk'
+          if-no-files-found: error
