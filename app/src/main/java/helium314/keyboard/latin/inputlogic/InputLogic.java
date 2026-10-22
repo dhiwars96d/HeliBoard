@@ -475,7 +475,10 @@ public final class InputLogic {
     public InputTransaction onCodeInput(SettingsValues settingsValues, @NonNull Event event,
             CapsMode keyboardCapsMode, LatinIME.UIHandler handler) {
         mJustRevertedACommit = false;
-
+        final int t9Code = event.getCodePoint();
+        if (t9Code >= 0xE001 && t9Code <= 0xE0FF) {
+            return handleT9Tap(settingsValues, event, keyboardCapsMode, t9Code);
+        }
         if (GestureDataGatheringKt.useBackgroundGathering && mConnection.hasSelection())
             BackgroundGatheringCache.INSTANCE.onEditSelection(mConnection.getSelectedText(0), mConnection.getTextBeforeCursor(40, 0), mConnection.getTextAfterCursor(40, 0));
         if (GestureDataGatheringKt.useBackgroundGathering && mWordComposer.isComposingWord() && mWordComposer.isCursorFrontOrMiddleOfComposingWord())
@@ -522,7 +525,69 @@ public final class InputLogic {
         mConnection.endBatchEdit();
         return inputTransaction;
     }
+        // ---- T9 multi-tap ----
+    private static final long T9_TIMEOUT_MS = 1000;
+    private int mT9LastCode = 0;
+    private int mT9Index = 0;
+    private long mT9LastTime = 0;
 
+    private static String t9Chars(final int code) {
+        switch (code) {
+            case 0xE001: return ".,?!1";
+            case 0xE002: return "abc2";
+            case 0xE003: return "def3";
+            case 0xE004: return "ghi4";
+            case 0xE005: return "jkl5";
+            case 0xE006: return "mno6";
+            case 0xE007: return "pqrs7";
+            case 0xE008: return "tuv8";
+            case 0xE009: return "wxyz9";
+            case 0xE011: return "।,?!1";
+            case 0xE012: return "अआइईउऊऋ";
+            case 0xE013: return "एऐओऔ";
+            case 0xE014: return "कखगघङ";
+            case 0xE015: return "चछजझञ";
+            case 0xE016: return "टठडढण";
+            case 0xE017: return "तथदधन";
+            case 0xE018: return "पफबभम";
+            case 0xE019: return "यरलव";
+            case 0xE01A: return "शषसह";
+                        case 0xE01B: return "\u093E\u093F\u0940\u0941\u0942\u0943";
+            case 0xE01C: return "\u0947\u0948\u094B\u094C\u0902\u0903\u094D";
+            default: return null;
+        }
+    }
+
+    private InputTransaction handleT9Tap(final SettingsValues settingsValues, final Event event,
+            final CapsMode keyboardCapsMode, final int code) {
+        final CapsMode caps = getActualCapsMode(settingsValues, keyboardCapsMode);
+        final InputTransaction inputTransaction = new InputTransaction(settingsValues, event,
+                SystemClock.uptimeMillis(), mSpaceState, caps);
+        final String chars = t9Chars(code);
+        if (chars == null) return inputTransaction;
+        final long now = SystemClock.uptimeMillis();
+        final boolean repeat = (code == mT9LastCode) && (now - mT9LastTime <= T9_TIMEOUT_MS);
+        mConnection.beginBatchEdit();
+        if (mWordComposer.isComposingWord()) {
+            commitTyped(settingsValues, LastComposedWord.NOT_A_SEPARATOR);
+        }
+        if (repeat) {
+            mT9Index = (mT9Index + 1) % chars.length();
+            mConnection.deleteTextBeforeCursor(1);
+        } else {
+            mT9Index = 0;
+        }
+        String out = chars.substring(mT9Index, mT9Index + 1);
+        if (caps != CapsMode.OFF) out = out.toUpperCase();
+        mConnection.commitText(out, 1);
+        mConnection.endBatchEdit();
+        mT9LastCode = code;
+        mT9LastTime = now;
+        mSpaceState = SpaceState.NONE;
+        mLastComposedWord.deactivate();
+        inputTransaction.setDidAffectContents();
+        return inputTransaction;
+    }
     public void onStartBatchInput(SettingsValues settingsValues, KeyboardSwitcher keyboardSwitcher, LatinIME.UIHandler handler) {
         mInputLogicHandler.onStartBatchInput();
         handler.showGesturePreviewAndSetSuggestions(SuggestedWords.getEmptyBatchInstance(), false);
