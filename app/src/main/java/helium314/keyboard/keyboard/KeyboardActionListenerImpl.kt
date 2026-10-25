@@ -140,13 +140,11 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
         val event = if (primaryCode in combiningRange) { // todo: should this be done later, maybe in inputLogic?
             Event.createSoftwareDeadEvent(primaryCode, 0, metaState, mkv.getKeyX(x), mkv.getKeyY(y), null)
         } else {
-            // todo:
-            //  setting meta shift should only be done for arrow and similar cursor movement keys
-            //  should only be enabled once it works more reliably (currently depends on app for some reason)
-//            if (mkv.keyboard?.mId?.isAlphabetShiftedManually == true)
-//                Event.createSoftwareKeypressEvent(primaryCode, metaState or KeyEvent.META_SHIFT_ON, mkv.getKeyX(x), mkv.getKeyY(y), isKeyRepeat)
-//            else Event.createSoftwareKeypressEvent(primaryCode, metaState, mkv.getKeyX(x), mkv.getKeyY(y), isKeyRepeat)
-            Event.createSoftwareKeypressEvent(primaryCode, metaState, mkv.getKeyX(x), mkv.getKeyY(y), isKeyRepeat)
+            // arrow keys with selected text: send with shift so the selection gets extended instead of cleared
+            val isArrow = primaryCode == KeyCode.ARROW_UP || primaryCode == KeyCode.ARROW_DOWN ||
+                primaryCode == KeyCode.ARROW_LEFT || primaryCode == KeyCode.ARROW_RIGHT
+            val ms = if (isArrow && connection.hasSelection()) metaState or KeyEvent.META_SHIFT_ON else metaState
+            Event.createSoftwareKeypressEvent(primaryCode, ms, mkv.getKeyX(x), mkv.getKeyY(y), isKeyRepeat)
         }
         latinIME.onEvent(event)
         metaAfterCodeInput(primaryCode)
