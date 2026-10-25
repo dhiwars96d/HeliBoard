@@ -568,9 +568,10 @@ public final class InputLogic {
         final long now = SystemClock.uptimeMillis();
         final boolean repeat = (code == mT9LastCode) && (now - mT9LastTime <= T9_TIMEOUT_MS);
         mConnection.beginBatchEdit();
-        if (mWordComposer.isComposingWord()) {
-            commitTyped(settingsValues, LastComposedWord.NOT_A_SEPARATOR);
-        }
+                if (mWordComposer.isComposingWord()) {
+            resetComposingState(true);
+            mConnection.finishComposingText();
+                }
         if (repeat) {
             mT9Index = (mT9Index + 1) % chars.length();
             mConnection.deleteTextBeforeCursor(1);
